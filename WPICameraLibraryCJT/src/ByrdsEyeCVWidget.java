@@ -17,6 +17,8 @@ import edu.wpi.first.wpijavacv.WPIContour;
 import edu.wpi.first.wpijavacv.WPIImage;
 import edu.wpi.first.wpijavacv.WPIPoint;
 import edu.wpi.first.wpijavacv.WPIPolygon;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
 import java.util.ArrayList;
 
 /**
@@ -48,7 +50,7 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
 
     public static final String NAME = "CJT Target Tracker";
     
-    private WPIColor targetColor = new WPIColor(0, 255, 0);
+    private WPIColor targetColor = new WPIColor(255, 0, 0);
     
     // Constants that need to be tuned
     private static final double kNearlyHorizontalSlope = Math.tan(Math.toRadians(20));
@@ -68,15 +70,26 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
     private IplImage val;
     private WPIPoint linePt1;
     private WPIPoint linePt2;
-
+    private static final double kShooterOffsetDeg = -1.55;
+    private static final double kHorizontalFOVDeg = 47.0;
+    private static final double kVerticalFOVDeg = 480.0/640.0*kHorizontalFOVDeg;
+    private static final double kCameraHeightIn = 33.75;
+    private static final double kCameraPitchDeg = 21.0;
+    private static final double kTopTargetHeightIn = 24; // 98 to rim, +2 to bottom of target, +9 to center of target
     public ByrdsEyeCVWidget() {
         morphKernel = IplConvKernel.create(3, 3, 1, 1, opencv_imgproc.CV_SHAPE_RECT, null);
         DaisyExtensions.init();
+        Robot.getTable().putNumber("hueLow",75);
+        Robot.getTable().putNumber("hueHigh",100);
+        Robot.getTable().putNumber("satLow",150);
+        Robot.getTable().putNumber("satHigh",200);
+        Robot.getTable().putNumber("valLow",100);
+        Robot.getTable().putNumber("valHigh",255);
     }
 
     @Override
     public WPIImage processImage(WPIColorImage rawImage) {
-
+       
         if (size == null || size.width() != rawImage.getWidth() || size.height() != rawImage.getHeight()) {
 
             // Note that the code in here will be executed once the first time through or anytime the image size changes
@@ -104,20 +117,22 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
         // Hue, Daisy 45..255
         // NOTE: Red is at the end of the color space, so you need to OR together
         // a thresh and inverted thresh in order to get points that are red
-        int hueThresholdLow = 0;
-        int hueThresholdHigh = 255;
+        int hueThresholdLow = (int)Robot.getTable().getNumber("hueLow");
+        int hueThresholdHigh = (int)Robot.getTable().getNumber("hueHigh");
+//        int hueThresholdLow =0;
+//        int hueThresholdHigh =255;
         opencv_imgproc.cvThreshold(hue, bin, hueThresholdLow, hueThresholdHigh, opencv_imgproc.CV_THRESH_BINARY);
 
         // Saturation, Daisy was 200..255
         // 3929 Blue:  100..255
-        int satThresholdLow = 0;
-        int satThresholdHigh = 255;
+        int satThresholdLow = (int)Robot.getTable().getNumber("satLow");
+        int satThresholdHigh = (int)Robot.getTable().getNumber("satHigh");
         opencv_imgproc.cvThreshold(sat, sat, satThresholdLow, satThresholdHigh, opencv_imgproc.CV_THRESH_BINARY);
 
         // Value Daisy was 55..255
         // 3929 Blue:  135..255
-        int valThresholdLow = 250;
-        int valThresholdHigh = 255;
+        int valThresholdLow = (int)Robot.getTable().getNumber("valLow");
+        int valThresholdHigh = (int)Robot.getTable().getNumber("valHigh");
         opencv_imgproc.cvThreshold(val, val, valThresholdLow, valThresholdHigh, opencv_imgproc.CV_THRESH_BINARY);
 
         // Combine the results to obtain our binary image which should for the most
@@ -133,12 +148,11 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
         WPIBinaryImage binWpi = DaisyExtensions.makeWPIBinaryImage(bin);
         contours = DaisyExtensions.findConvexContours(binWpi);
 
-        // polygons = new ArrayList<WPIPolygon>();
         polygons = new ArrayList<>();
 
         for (WPIContour c : contours) {
             double ratio = ((double) c.getHeight()) / ((double) c.getWidth());
-            if (ratio < 1.0 && ratio > 0.5 && c.getWidth() > kMinWidth && c.getWidth() < kMaxWidth) {
+            if (ratio < 1.0 && ratio > 0.1 && c.getWidth() > kMinWidth && c.getWidth() < kMaxWidth) {
                 polygons.add(c.approxPolygon(20));
             }
         }
@@ -187,14 +201,21 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
                     }
                 }
             } else {
-                rawImage.drawPolygon(p, WPIColor.YELLOW, 1);
+                rawImage.drawPolygon(p, WPIColor.YELLOW, 5);
             }
         }
 
         if (square != null) {
+//            double x = square.getX() + (square.getWidth() / 2);
+//            double y = square.getY() + (square.getHeight() / 2);
             double x = square.getX() + (square.getWidth() / 2);
+            x = (2 * (x / size.width())) - 1;
             double y = square.getY() + (square.getHeight() / 2);
-
+            y = -((2 * (y / size.height())) - 1);
+            
+            double range = (kTopTargetHeightIn-kCameraHeightIn)/Math.tan((y*kVerticalFOVDeg/2.0 + kCameraPitchDeg)*Math.PI/180.0);
+            Robot.getTable().putNumber("Range",range);
+            rawImage.drawPolygon(square, WPIColor.GREEN, 2);
             // These statements map x and y onto the range -1, +1
             // x = (2 * (x / size.width())) - 1;
             // y = -((2 * (y / size.height())) - 1);
@@ -212,5 +233,7 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
         //System.gc();
 
         return rawImage;
+        
+        //return DaisyExtensions.makeWPIBinaryImage(bin);
     }
 }
