@@ -17,8 +17,6 @@ import edu.wpi.first.wpijavacv.WPIContour;
 import edu.wpi.first.wpijavacv.WPIImage;
 import edu.wpi.first.wpijavacv.WPIPoint;
 import edu.wpi.first.wpijavacv.WPIPolygon;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-
 import java.util.ArrayList;
 
 /**
@@ -55,7 +53,7 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
     // Constants that need to be tuned
     private static final double kNearlyHorizontalSlope = Math.tan(Math.toRadians(20));
     private static final double kNearlyVerticalSlope = Math.tan(Math.toRadians(90 - 20));
-    private static final int kMinWidth = 20;
+    private static final int kMinWidth = 5;
     private static final int kMaxWidth = 200;
     
     // Store JavaCV temporaries as members to reduce memory management during processing
@@ -70,21 +68,16 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
     private IplImage val;
     private WPIPoint linePt1;
     private WPIPoint linePt2;
-    private static final double kShooterOffsetDeg = -1.55;
-    private static final double kHorizontalFOVDeg = 47.0;
-    private static final double kVerticalFOVDeg = 480.0/640.0*kHorizontalFOVDeg;
-    private static final double kCameraHeightIn = 33.75;
-    private static final double kCameraPitchDeg = 21.0;
-    private static final double kTopTargetHeightIn = 24; // 98 to rim, +2 to bottom of target, +9 to center of target
+    
     public ByrdsEyeCVWidget() {
         morphKernel = IplConvKernel.create(3, 3, 1, 1, opencv_imgproc.CV_SHAPE_RECT, null);
         DaisyExtensions.init();
-        Robot.getTable().putNumber("hueLow",75);
-        Robot.getTable().putNumber("hueHigh",100);
-        Robot.getTable().putNumber("satLow",150);
-        Robot.getTable().putNumber("satHigh",200);
-        Robot.getTable().putNumber("valLow",100);
-        Robot.getTable().putNumber("valHigh",255);
+        Robot.getTable().putNumber("hueLow",    50);
+        Robot.getTable().putNumber("hueHigh",   100);
+        Robot.getTable().putNumber("satLow",    150);
+        Robot.getTable().putNumber("satHigh",   200);
+        Robot.getTable().putNumber("valLow",    100);
+        Robot.getTable().putNumber("valHigh",   255);
     }
 
     @Override
@@ -119,8 +112,6 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
         // a thresh and inverted thresh in order to get points that are red
         int hueThresholdLow = (int)Robot.getTable().getNumber("hueLow");
         int hueThresholdHigh = (int)Robot.getTable().getNumber("hueHigh");
-//        int hueThresholdLow =0;
-//        int hueThresholdHigh =255;
         opencv_imgproc.cvThreshold(hue, bin, hueThresholdLow, hueThresholdHigh, opencv_imgproc.CV_THRESH_BINARY);
 
         // Saturation, Daisy was 200..255
@@ -158,7 +149,7 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
         }
 
         WPIPolygon square = null;
-        int highest = Integer.MAX_VALUE;
+       int highest = Integer.MAX_VALUE;
 
         for (WPIPolygon p : polygons) {
             if (p.isConvex() && p.getNumVertices() == 4) {
@@ -206,27 +197,15 @@ public class ByrdsEyeCVWidget extends WPICameraExtension {
         }
 
         if (square != null) {
-//            double x = square.getX() + (square.getWidth() / 2);
-//            double y = square.getY() + (square.getHeight() / 2);
             double x = square.getX() + (square.getWidth() / 2);
-            x = (2 * (x / size.width())) - 1;
             double y = square.getY() + (square.getHeight() / 2);
-            y = -((2 * (y / size.height())) - 1);
-            
-            double range = (kTopTargetHeightIn-kCameraHeightIn)/Math.tan((y*kVerticalFOVDeg/2.0 + kCameraPitchDeg)*Math.PI/180.0);
-            Robot.getTable().putNumber("Range",range);
-            rawImage.drawPolygon(square, WPIColor.GREEN, 2);
-            // These statements map x and y onto the range -1, +1
-            // x = (2 * (x / size.width())) - 1;
-            // y = -((2 * (y / size.height())) - 1);
 
             Robot.getTable().putNumber("x coordinate", x);
             Robot.getTable().putNumber("y coordinate", y);
-
         }
 
         // Draw a crosshair
-        rawImage.drawLine(linePt1, linePt2, targetColor, 2);
+        // rawImage.drawLine(linePt1, linePt2, targetColor, 2);
 
         DaisyExtensions.releaseMemory();
 
